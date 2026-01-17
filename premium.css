@@ -1,0 +1,226 @@
+/* Añadir al final de style.css */
+
+/* Header Top */
+.header-top {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+}
+
+.premium-btn-header {
+    position: absolute;
+    right: 0;
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    color: #000;
+    font-weight: 800;
+    font-size: 0.8rem;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+    transition: all 0.3s ease;
+    animation: glow 2s infinite;
+}
+
+.premium-btn-header:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.6);
+}
+
+@keyframes glow {
+    0% {
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    }
+
+    100% {
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+    }
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.hidden {
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-content {
+    background: linear-gradient(145deg, #1a1b26, #0f1016);
+    width: 90%;
+    max-width: 500px;
+    padding: 2.5rem;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    position: relative;
+    text-align: center;
+    animation: zoomIn 0.3s ease-out;
+}
+
+.modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.plan-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.price {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+.currency {
+    font-size: 1.5rem;
+    vertical-align: top;
+}
+
+.period {
+    font-size: 1rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.features-list {
+    list-style: none;
+    text-align: left;
+    margin-bottom: 1.5rem;
+    color: #ddd;
+}
+
+.features-list li {
+    margin-bottom: 0.8rem;
+    font-size: 0.95rem;
+}
+
+.mp-btn-pay {
+    display: block;
+    background: #009EE3;
+    /* MP Blue */
+    color: white;
+    text-decoration: none;
+    padding: 1rem;
+    border-radius: 12px;
+    font-weight: 700;
+    transition: background 0.3s;
+}
+
+.mp-btn-pay:hover {
+    background: #0089c7;
+}
+
+.activation-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 1.5rem;
+}
+
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.input-group input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    padding: 0.8rem;
+    border-radius: 8px;
+    color: white;
+    font-family: var(--font-main);
+}
+
+#activate-btn {
+    background: var(--text-muted);
+    border: none;
+    padding: 0 1.5rem;
+    border-radius: 8px;
+    color: #111;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.msg {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    min-height: 1.2em;
+}
+
+.msg.success {
+    color: #00e676;
+}
+
+.msg.error {
+    color: #ff5252;
+}
+
+.support-info {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.support-info a {
+    color: var(--secondary);
+    text-decoration: none;
+}
+
+@keyframes zoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (max-width: 600px) {
+    .premium-btn-header {
+        position: relative;
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+
+    .header-top {
+        flex-direction: column;
+    }
+}

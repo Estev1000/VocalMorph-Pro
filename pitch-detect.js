@@ -10,14 +10,24 @@ const PitchDetector = {
     dataArray: null,
     source: null,
 
-    init: function (audioContext, stream) {
+    init: function (audioContext, sourceNode) {
         this.audioContext = audioContext;
         this.analyser = audioContext.createAnalyser();
         this.analyser.fftSize = 2048;
         this.bufferLength = this.analyser.fftSize;
         this.dataArray = new Float32Array(this.bufferLength);
 
-        this.source = audioContext.createMediaStreamSource(stream);
+        if (sourceNode) {
+            this.updateSource(sourceNode);
+        }
+    },
+
+    updateSource: function (sourceNode) {
+        // Desconectar anterior si existe
+        if (this.source) {
+            try { this.source.disconnect(); } catch (e) { }
+        }
+        this.source = sourceNode;
         this.source.connect(this.analyser);
     },
 

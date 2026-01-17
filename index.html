@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="premium.css">
+    <link rel="stylesheet" href="transform.css">
     <!-- Tone.js para el motor de audio -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- Lamejs para conversión MP3 -->
@@ -19,7 +21,10 @@
 
     <div class="app-container">
         <header class="main-header">
-            <div class="logo">VocalMorph <span class="accent">Pro</span></div>
+            <div class="header-top">
+                <div class="logo">VocalMorph <span class="accent">Pro</span></div>
+                <button id="premium-trigger" class="premium-btn-header">👑 ACTIVAR PRO</button>
+            </div>
             <p class="subtitle">Transforma tu voz en una orquesta en tiempo real</p>
         </header>
 
@@ -30,52 +35,24 @@
                 <div class="status-indicator">
                     <span id="note-display">--</span>
                     <div class="status-dot" id="status-dot"></div>
-                </div>
-            </div>
-
-            <div class="instrument-selector">
-                <p class="label">Selecciona tu Instrumento</p>
-                <div class="instruments">
-                    <button class="inst-btn active" data-inst="violin">
-                        <span class="icon">🎻</span> Violín
-                    </button>
-                    <button class="inst-btn" data-inst="cello">
-                        <span class="icon">🎻</span> Cello
-                    </button>
-                    <button class="inst-btn" data-inst="synth">
-                        <span class="icon">🎹</span> Synth
-                    </button>
+                    <p class="status-text">Listo para grabar</p>
                 </div>
             </div>
 
             <div class="controls">
-                <button id="start-btn" class="primary-btn">
-                    <span class="btn-content">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                            <line x1="12" y1="19" x2="12" y2="23"></line>
-                            <line x1="8" y1="23" x2="16" y2="23"></line>
-                        </svg>
-                        Activar Micrófono
-                    </span>
-                </button>
-
-                <div class="settings">
-                    <div class="setting-group">
-                        <label>Sensibilidad Mic</label>
-                        <input type="range" min="-60" max="-20" value="-40" id="threshold-slider">
-                    </div>
-                </div>
 
                 <div class="recorder-controls">
-                    <button id="record-btn" class="secondary-btn" disabled>
-                        <span class="btn-content">⏺ Grabar Pista</span>
+                    <button id="record-voice-btn" class="primary-btn">
+                        <span class="btn-content">� Grabar Voz</span>
                     </button>
-                    <button id="play-all-btn" class="secondary-btn" disabled>
+                    <!-- El botón play all se mantiene pero oculto hasta que haya pistas -->
+                    <button id="play-all-btn" class="secondary-btn" style="display:none;">
                         <span class="btn-content">▶ Reproducir Todo</span>
                     </button>
+                </div>
+
+                <div class="settings">
+                    <p class="hint-text">Graba tu voz limpia. Luego podrás transformarla en instrumentos.</p>
                 </div>
             </div>
 
@@ -94,6 +71,70 @@
                 <p>Desarrollado con IA Avanzada. Funciona localmente en tu navegador.</p>
             </div>
         </footer>
+    </div>
+
+    <!-- Modal Premium -->
+    <div id="premium-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button class="modal-close">&times;</button>
+            <div class="modal-header">
+                <h2>🚀 VocalMorph <span class="accent">PRO</span></h2>
+                <p>Desata todo tu potencial creativo</p>
+            </div>
+
+            <div class="plan-card">
+                <div class="price">
+                    <span class="currency">$</span>5.000<span class="period">/mes</span>
+                </div>
+                <ul class="features-list">
+                    <li>✅ <strong>Pistas Ilimitadas</strong> (Free: solo 1)</li>
+                    <li>✅ <strong>Descargas MP3</strong> (Free: bloqueado)</li>
+                    <li>✅ <strong>Todos los Instrumentos</strong></li>
+                    <li>✅ <strong>Soporte Técnico Especializado</strong></li>
+                </ul>
+
+                <a href="https://mpago.la/1rvXhif" target="_blank" class="mp-btn-pay">
+                    Pagar Suscripción con Mercado Pago
+                </a>
+            </div>
+
+            <div class="activation-section">
+                <p>¿Tenes un código de activación?</p>
+                <div class="input-group">
+                    <input type="text" id="activation-code" placeholder="Ingresa tu código aquí...">
+                    <button id="activate-btn">ACTIVAR</button>
+                </div>
+                <p id="activation-msg" class="msg"></p>
+                <div class="support-info">
+                    <p>Soporte: <a href="https://wa.me/5492657708115" target="_blank">Whatsapp Soporte</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Transformación -->
+    <div id="transform-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button class="modal-close-transform">&times;</button>
+            <div class="modal-header">
+                <h2>🎻 Elegir Instrumento</h2>
+                <p>¿En qué quieres transformar esta grabación?</p>
+            </div>
+
+            <div class="instrument-grid">
+                <button class="t-inst-btn" onclick="selectTransformInstrument('violin')">
+                    <span class="t-icon">🎻</span> Violín
+                </button>
+                <button class="t-inst-btn" onclick="selectTransformInstrument('cello')">
+                    <span class="t-icon">🎻</span> Cello
+                </button>
+                <button class="t-inst-btn" onclick="selectTransformInstrument('synth')">
+                    <span class="t-icon">🎹</span> Synth
+                </button>
+            </div>
+
+            <p class="processing-msg hidden">Procesando audio... <span class="spinner">⏳</span></p>
+        </div>
     </div>
 
     <script src="pitch-detect.js"></script>
