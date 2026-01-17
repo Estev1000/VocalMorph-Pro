@@ -74,47 +74,67 @@ async function toggleVoiceRecording() {
     }
 
     if (!isRecording) {
-        // Start Recording
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Solicitar explícitamente el microfono
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
+                }
+            });
 
-            // Visualizer connection
-            PitchDetector.init(audioContext, stream);
-            drawWaveform(); // Start loop
+            // Asegurar contexto activo
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
 
-            // Use MediaRecorder for raw voice
+            // Conectar Visualizador
+            const source = audioContext.createMediaStreamSource(stream);
+            PitchDetector.updateSource(source);
+            drawWaveform(); // Iniciar loop visual
+
+            // Usar MediaRecorder para guardar el audio limpio
             voiceRecorder = new MediaRecorder(stream);
             let chunks = [];
             voiceRecorder.ondataavailable = e => chunks.push(e.data);
             voiceRecorder.onstop = async () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
+                const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
                 pendingVoiceBlob = blob;
-                openTransformModal(); // Immediately ask what to do with this voice
+                // Detener tracks del stream para apagar icono de grabacion del navegador
+                stream.getTracks().forEach(t => t.stop());
+                openTransformModal();
             };
 
             voiceRecorder.start();
             isRecording = true;
 
             // UI Update
-            recordVoiceBtn.classList.add('listening'); // Pulse effect
+            recordVoiceBtn.classList.add('listening');
             recordVoiceBtn.innerHTML = `<span class="btn-content">⏹ Detener Grabación</span>`;
-            document.querySelector('.status-text').innerText = "Grabando Voz Clean...";
+            document.querySelector('.status-text').innerText = "Grabando Voz (Sin Efectos)...";
             document.getElementById('status-dot').classList.add('active');
 
         } catch (err) {
-            console.error(err);
-            alert("Error: No se pudo acceder al micrófono.");
+            console.error("Error micrófono:", err);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                alert("Permiso denegado. Por favor permite el acceso al micrófono en la barra de dirección.");
+            } else {
+                alert("No pudimos acceder al micrófono. Verifica tu configuración.");
+            }
         }
     } else {
-        // Stop Recording
-        voiceRecorder.stop();
-        stream.getTracks().forEach(t => t.stop());
+        // Stop Recording logic
+        if (voiceRecorder && voiceRecorder.state !== 'inactive') {
+            voiceRecorder.stop();
+        }
+
         isRecording = false;
 
         // UI Update
         recordVoiceBtn.classList.remove('listening');
         recordVoiceBtn.innerHTML = `<span class="btn-content">🎙 Grabar Voz</span>`;
-        document.querySelector('.status-text').innerText = "Procesamiento Pendiente...";
+        document.querySelector('.status-text').innerText = "Procesando...";
         document.getElementById('status-dot').classList.remove('active');
     }
 }
