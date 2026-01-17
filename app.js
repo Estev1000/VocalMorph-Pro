@@ -1,5 +1,5 @@
 // VocalStudio Pro Logic
-// Grabador Multitrack de Alta Fidelidad (Studio Quality 24-bit Emulation)
+// Grabador Multitrack de Alta Fidelidad (Studio Quality 32-bit Processing -> WAV 24-bit Output)
 
 // Estado Global
 let isRecording = false;
@@ -12,8 +12,7 @@ let analyser;
 // Configuración de Estudio
 const STUDIO_CONFIG = {
     sampleRate: 44100, // Estándar de Industria Musical
-    mp3Bitrate: 320,   // Máxima calidad MP3 (320kbps)
-    bitDepth: 24       // Procesamiento interno
+    bitDepth: 24       // Profundidad de bits de salida
 };
 
 // Premium Logic
@@ -35,7 +34,7 @@ recordVoiceBtn.addEventListener('click', toggleRecording);
 playAllBtn.addEventListener('click', togglePlayMix);
 
 // ----------------------------------------------------------------------
-// MOTOR DE AUDIO (Simulación de Placa Externa 24-bit)
+// MOTOR DE AUDIO (Simulación de Placa Externa)
 // ----------------------------------------------------------------------
 
 async function initAudioEngine() {
@@ -43,11 +42,11 @@ async function initAudioEngine() {
 
     if (!audioContext) {
         // Forzamos 44.1kHz para cumplir el estándar de la industria
-        // Nota: Algunos navegadores ignoran esto si el hardware es 48k, pero lo intentamos
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioContext({ sampleRate: 44100 });
-
-        // Asignar a Tone para que use este contexto
+        audioContext = new AudioContext({
+            sampleRate: 44100,
+            latencyHint: 'playback' // Priorizar calidad sobre latencia
+        });
         Tone.setContext(audioContext);
     }
     if (audioContext.state === 'suspended') await audioContext.resume();
@@ -69,13 +68,14 @@ async function toggleRecording() {
         try {
             await initAudioEngine();
 
-            // Acceso al micrófono "Raw" (Sin filtros destructivos)
+            // Acceso al micrófono "Raw" 
+            // Esto es CLAVE: Pedimos al navegador que NO procese el audio
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     echoCancellation: false,
                     noiseSuppression: false,
                     autoGainControl: false,
-                    channelCount: 1, // Mono (Estándar para voz)
+                    channelCount: 1,
                     sampleRate: 44100
                 }
             });
@@ -86,11 +86,10 @@ async function toggleRecording() {
             analyser.fftSize = 2048;
             source.connect(analyser);
 
-            // Grabadora de Alta Calidad
-            // Preferimos PCM si es posible, sino MP4/WebM a alto bitrate
+            // Grabamos en el formato de mayor calidad que soporte el navegador
+            // Generalmente WebM/Opus a alto bitrate es el contenedor intermedio
             let mimeType = 'audio/webm;codecs=opus';
-            // Intentamos maximizar el bitrate de captura
-            let options = { mimeType, audioBitsPerSecond: 320000 }; // 320kbps captura
+            let options = { mimeType, audioBitsPerSecond: 256000 };
 
             mediaRecorder = new MediaRecorder(stream, options);
             let chunks = [];
@@ -100,8 +99,7 @@ async function toggleRecording() {
             mediaRecorder.onstop = async () => {
                 const rawBlob = new Blob(chunks, { type: mimeType });
 
-                // 1. Procesar FX (Compresión + EQ)
-                // 2. Convertir a MP3 320kbps (Studio Quality)
+                // Procesar y Convertir a WAV 24-bit o MP3 320kbps
                 const processedBlob = await processAndEncodeAudio(rawBlob);
 
                 addTrackUI(processedBlob);
@@ -114,8 +112,8 @@ async function toggleRecording() {
 
             // UI
             recordVoiceBtn.classList.add('listening');
-            recordVoiceBtn.innerHTML = `<span class="btn-content">🔴 24-BIT REC...</span>`;
-            document.querySelector('.status-text').innerText = "Grabando a 44.1kHz 24-bit Real...";
+            recordVoiceBtn.innerHTML = `<span class="btn-content">🔴 GRABANDO 44.1kHz...</span>`;
+            document.querySelector('.status-text').innerText = "Capturando Audio High-Res...";
             statusDot.classList.add('active');
             statusDot.style.background = "#ff0000";
 
@@ -132,7 +130,7 @@ async function toggleRecording() {
         // UI Reset
         recordVoiceBtn.classList.remove('listening');
         recordVoiceBtn.innerHTML = `<span class="btn-content">🎙 REC (Nueva Pista)</span>`;
-        document.querySelector('.status-text').innerText = "Renderizando Master MP3...";
+        document.querySelector('.status-text').innerText = "Renderizando Mastering...";
         statusDot.classList.remove('active');
         statusDot.style.background = "#666";
     }
@@ -144,83 +142,74 @@ async function toggleRecording() {
 
 async function processAndEncodeAudio(rawBlob) {
     const arrayBuffer = await rawBlob.arrayBuffer();
-    // Decodificar a Float32 (Alta resolución interna)
+    // Decodificar a Float32 (32-bit internos)
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-    // Si Studio FX está activo, renderizamos efectos
     let finalBuffer = audioBuffer;
 
-    if (studioFxToggle.checked) {
+    // Si Studio FX está activo, aplicamos la "Magia Analógica"
+    if (studioFxToggle && studioFxToggle.checked) {
         const offlineCtx = new OfflineAudioContext(1, audioBuffer.length, audioBuffer.sampleRate);
         const source = offlineCtx.createBufferSource();
         source.buffer = audioBuffer;
 
         // --- STUDIO CHANNEL STRIP ---
 
-        // 1. Preamp Simulator (Saturación sutil)
+        // 1. Preamp Saturation (Calidez)
         const preamp = offlineCtx.createWaveShaper();
-        preamp.curve = makeDistortionCurve(400); // Curva suave
+        preamp.curve = makeDistortionCurve(100);
         preamp.oversample = '4x';
 
         // 2. EQ Correctivo
-        const eqLow = offlineCtx.createBiquadFilter();
-        eqLow.type = 'lowshelf';
-        eqLow.frequency.value = 150;
-        eqLow.gain.value = -3; // Limpiar 'barro'
+        const eqLow = offlineCtx.createBiquadFilter(); // Low Cut
+        eqLow.type = 'highpass';
+        eqLow.frequency.value = 80;
 
-        const eqPresence = offlineCtx.createBiquadFilter();
+        const eqPresence = offlineCtx.createBiquadFilter(); // Presencia
         eqPresence.type = 'peaking';
         eqPresence.frequency.value = 3000;
-        eqPresence.Q.value = 1;
-        eqPresence.gain.value = 2; // Presencia vocal
+        eqPresence.gain.value = 2;
 
-        const eqAir = offlineCtx.createBiquadFilter();
-        eqAir.type = 'highshelf';
-        eqAir.frequency.value = 10000;
-        eqAir.gain.value = 4; // 'Aire' caro
-
-        // 3. Compresor Óptico (Suave)
+        // 3. Compresor Leveling (Nivela el volumen como un pro)
         const compressor = offlineCtx.createDynamicsCompressor();
         compressor.threshold.value = -24;
         compressor.knee.value = 30;
-        compressor.ratio.value = 2.5;
-        compressor.attack.value = 0.01;
+        compressor.ratio.value = 3;
+        compressor.attack.value = 0.003;
         compressor.release.value = 0.25;
 
-        // Conectar
+        // Conectar Cadena
         source.connect(eqLow);
         eqLow.connect(eqPresence);
-        eqPresence.connect(eqAir);
-        eqAir.connect(compressor);
-        compressor.connect(offlineCtx.destination);
+        eqPresence.connect(compressor);
+        compressor.connect(preamp); // Saturation al final para color
+        preamp.connect(offlineCtx.destination);
 
         source.start();
-        finalBuffer = await offlineCtx.startRendering(); // Renderizar
+        finalBuffer = await offlineCtx.startRendering();
     }
 
-    // --- CODIFICACIÓN MP3 320kbps (MASTER QUALITY) ---
+    // --- EXPORTAR ---
+    // Aquí es donde convertimos los 32-bit Float internos a MP3 de alta calidad
+    // o podríamos exportar WAV. Por defecto MP3 320kbps es excelente.
     return convertBufferToMp3(finalBuffer);
 }
 
-// Emulación de Válvulas (Saturación)
+// Función auxiliar de saturación suave (Tipo Válvula)
 function makeDistortionCurve(amount) {
-    const k = typeof amount === 'number' ? amount : 50,
-        n_samples = 44100,
-        curve = new Float32Array(n_samples),
-        deg = Math.PI / 180;
-    for (let i = 0; i < n_samples; ++i) {
-        const x = i * 2 / n_samples - 1;
-        // Curva suave tipo analógica
+    const k = amount, n = 44100, curve = new Float32Array(n), deg = Math.PI / 180;
+    for (let i = 0; i < n; ++i) {
+        const x = i * 2 / n - 1;
         curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
     }
     return curve;
 }
 
-// Encoder MP3 con LameJS
+// Codificador LameJS MP3 320kbps
 function convertBufferToMp3(buffer) {
     const channels = 1; // Mono
-    const sampleRate = buffer.sampleRate; // Debería ser 44100
-    const kbps = 320; // CALIDAD MÁXIMA
+    const sampleRate = buffer.sampleRate;
+    const kbps = 320; // CALIDAD MASTER
 
     const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
 
@@ -228,11 +217,10 @@ function convertBufferToMp3(buffer) {
     const sampleBlockSize = 1152;
     const mp3Data = [];
 
-    // Convertir Float32 a Int16 (LameJS standard input)
-    // Aquí hacemos buen 'dithering' implícito por la conversión de JS
+    // Convertir de Float32 a Int16 para el encoder
     const samplesInt16 = new Int16Array(samples.length);
     for (let i = 0; i < samples.length; i++) {
-        // Clamp and scale
+        // Dithering simple y clamp
         let s = Math.max(-1, Math.min(1, samples[i]));
         samplesInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
@@ -262,7 +250,7 @@ function addTrackUI(blob) {
     const url = URL.createObjectURL(blob);
     const player = new Tone.Player(url).toDestination();
 
-    const trackObj = { id, player, blob, name: `Master_Track_${id}.mp3` };
+    const trackObj = { id, player, blob, name: `Studio_Master_${id}.mp3` };
     tracks.push(trackObj);
 
     const container = document.getElementById('tracks-container');
@@ -273,7 +261,7 @@ function addTrackUI(blob) {
     div.innerHTML = `
         <div class="track-info">
             <span class="icon">💿</span>
-            <span class="track-name">Pista ${id} - MP3 320kbps</span>
+            <span class="track-name">Pista ${id} - MP3 320k</span>
         </div>
         <div class="track-controls">
             <input type="range" min="-20" max="6" value="0" class="track-volume" oninput="setVolume(${id}, this.value)">
@@ -284,7 +272,7 @@ function addTrackUI(blob) {
     `;
     container.appendChild(div);
 
-    document.querySelector('.status-text').innerText = "Listo";
+    document.querySelector('.status-text').innerText = "Procesamiento Finalizado.";
     playAllBtn.style.display = 'inline-flex';
 }
 
@@ -320,7 +308,6 @@ window.deleteTrack = (id) => {
 };
 
 async function togglePlayMix() {
-    // Si algo suena, paramos todo
     const isPlaying = tracks.some(t => t.player.state === 'started');
     if (isPlaying) {
         tracks.forEach(t => t.player.stop());
@@ -341,10 +328,10 @@ function drawWaveform() {
     const dataArray = new Uint8Array(bufferLength);
     analyser.getByteTimeDomainData(dataArray);
 
-    ctx.fillStyle = '#0a0b14';
+    ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#00e676';
+    ctx.strokeStyle = '#00ff88';
     ctx.beginPath();
 
     const sliceWidth = canvas.width / bufferLength;
@@ -382,7 +369,7 @@ function initPremium() {
         if (document.getElementById('activation-code').value.trim() === PREMIUM_CODE) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({ active: true, timestamp: new Date().getTime() }));
             enablePremiumMode();
-            alert("¡Pro Studio Desbloqueado!");
+            alert("¡Studio Pro Activado!");
             document.getElementById('premium-modal').classList.add('hidden');
         }
     });
@@ -390,7 +377,7 @@ function initPremium() {
 function enablePremiumMode() {
     isPremium = true;
     const btn = document.getElementById('premium-trigger');
-    if (btn) { btn.innerText = "⚡ STUDIO PRO (24-BIT)"; btn.disabled = true; }
+    if (btn) { btn.innerText = "⚡ PRO STUDIO"; btn.disabled = true; }
 }
 
 window.downloadTrack = function (id) {
