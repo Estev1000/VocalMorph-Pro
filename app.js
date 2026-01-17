@@ -380,12 +380,36 @@ function initPremium() {
         const data = JSON.parse(savedStatus);
         if (new Date().getTime() - data.timestamp < 30 * 24 * 3600 * 1000) enablePremiumMode();
     }
+
+    // Auto-activación por URL (Mercado Pago Return)
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('pago') === 'aprobado') {
-        document.getElementById('premium-modal').classList.remove('hidden');
-        document.querySelector('.activation-section').innerHTML = `<p>Tu Código: <strong>${PREMIUM_CODE}</strong></p>`;
-        // Simplificado para la demo, usar lógica completa si es necesario
+        // Activar Directamente
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ active: true, timestamp: new Date().getTime() }));
+        enablePremiumMode();
+
+        // Mostrar Modal de Éxito
+        const modal = document.getElementById('premium-modal');
+        modal.classList.remove('hidden');
+
+        // Limpiar contenido del modal para mostrar solo éxito
+        const content = modal.querySelector('.modal-content');
+        content.innerHTML = `
+            <div style="text-align: center; padding: 2rem;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+                <h2 style="color: #00e676; margin-bottom: 0.5rem;">¡Suscripción Activada!</h2>
+                <p style="color: #ccc; margin-bottom: 2rem;">Gracias por apoyar VocalMorph Pro.</p>
+                <button id="close-success-btn" style="background: #00e676; color: #000; border: none; padding: 1rem 2rem; border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 1.1rem;">Comenzar a Crear</button>
+            </div>
+        `;
+
+        document.getElementById('close-success-btn').addEventListener('click', () => {
+            modal.classList.add('hidden');
+            // Limpiar URL para que no vuelva a saltar al recargar
+            window.history.replaceState({}, document.title, "/VocalMorph-Pro/");
+        });
     }
+
     document.getElementById('premium-trigger').addEventListener('click', () => document.getElementById('premium-modal').classList.remove('hidden'));
     document.querySelector('.modal-close').addEventListener('click', () => document.getElementById('premium-modal').classList.add('hidden'));
     const actBtn = document.getElementById('activate-btn');
