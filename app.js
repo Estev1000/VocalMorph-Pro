@@ -16,6 +16,11 @@ let isPlaying = false;
 let silenceTimer = null;
 let trackCounter = 1;
 
+// Premium Logic
+let isPremium = false;
+const PREMIUM_CODE = "PRO-VOICE-2026";
+const STORAGE_KEY = "vocalmorph_pro_status";
+
 // Configuración de Instrumentos (Presets)
 const instruments = {
     violin: new Tone.FMSynth({
@@ -85,15 +90,24 @@ async function startAudio() {
 
     if (!audioContext) {
         setupAudioRouting();
+        // Usar el contexto de Tone.js en lugar de crear uno nuevo
+        audioContext = Tone.context.rawContext || Tone.context;
     }
 
     try {
+        // Verificar que mediaDevices está disponible
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Tu navegador no soporta acceso al micrófono. Por favor usa Chrome, Firefox o Edge actualizado.');
+        }
+
         // Pedir permiso y stream de audio
         stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-        // Inicializar detector de pitch
-        PitchDetector.init(audioContext, stream);
+        // Crear nodo fuente desde el stream (CRUCIAL: esto arregla 'source.connect is not a function')
+        const micSource = audioContext.createMediaStreamSource(stream);
+
+        // Inicializar detector de pitch con el source node correcto
+        PitchDetector.init(audioContext, micSource);
 
         isListening = true;
 
@@ -107,7 +121,20 @@ async function startAudio() {
 
     } catch (err) {
         console.error('Error al acceder al micrófono:', err);
-        alert('Necesitamos acceso a tu micrófono para que esto funcione.');
+
+        let errorMsg = 'Error al acceder al micrófono.';
+
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            errorMsg = 'Permiso denegado. Por favor permite el acceso al micrófono en la configuración de tu navegador.';
+        } else if (err.name === 'NotFoundError') {
+            errorMsg = 'No se encontró ningún micrófono. Por favor conecta un micrófono y recarga la página.';
+        } else if (err.name === 'NotReadableError') {
+            errorMsg = 'El micrófono está siendo usado por otra aplicación. Por favor cierra otras aplicaciones que usen el micrófono.';
+        } else if (err.message) {
+            errorMsg = err.message;
+        }
+
+        alert(errorMsg);
     }
 }
 
@@ -127,6 +154,12 @@ function stopAudio() {
 // --- Grabación y Pistas ---
 
 async function toggleRecording() {
+    // Premium Check (Limit 1 track for free users)
+    if (!isPremium && tracks.length >= 1 && !isRecording) {
+        document.getElementById('premium-modal').classList.remove('hidden');
+        return;
+    }
+
     if (!isRecording) {
         // Start Recording
         recorder.start();
@@ -277,6 +310,11 @@ function renderTrackUI(track) {
 }
 
 window.downloadTrack = function (id) {
+    if (!isPremium) {
+        document.getElementById('premium-modal').classList.remove('hidden');
+        return;
+    }
+
     const track = tracks.find(t => t.id === id);
     if (!track) return;
 
@@ -336,21 +374,14 @@ function loop() {
 
     // 1. Detectar Pitch
     const frequency = PitchDetector.getPitch();
-    const threshold = parseInt(thresholdSlider.value); // Umbral dinámico
 
     // 2. Visualizar Onda
     drawWaveform();
 
     // 3. Controlar Sintetizador
-    // RMS check se hace dentro de pitch-detect pero podemos reforzar aquí si tenemos acceso al volumen
-    // Por simplicidad, confiamos en la frecuencia y un rango válido
-
     if (frequency && frequency > 65 && frequency < 1500) { // Range check 
 
-        const noteData = getNoteFromFrequency(frequency);
-        const note = noteData.note;
-
-        noteDisplay.innerText = note;
+        if (noteDisplay) noteDisplay.innerText = frequency.toFixed(1) + ' Hz';
 
         if (!isPlaying) {
             synth.triggerAttack(frequency);
@@ -359,8 +390,6 @@ function loop() {
             // Glissando
             if (synth.frequency) {
                 synth.frequency.rampTo(frequency, 0.1);
-            } else {
-                synth.setNote && synth.setNote(note);
             }
         }
 
@@ -369,7 +398,7 @@ function loop() {
             if (isPlaying) {
                 synth.triggerRelease();
                 isPlaying = false;
-                noteDisplay.innerText = "--";
+                if (noteDisplay) noteDisplay.innerText = "--";
             }
         }, 200);
 
@@ -409,3 +438,58 @@ function drawWaveform() {
     ctx.stroke();
     requestAnimationFrame(drawWaveform);
 }
+
+// --- Premium Init Logic ---
+function initPremium() {
+    const savedStatus = localStorage.getItem(STORAGE_KEY);
+    if (savedStatus) {
+        const data = JSON.parse(savedStatus);
+        if (new Date().getTime() - data.timestamp < 30 * 24 * 3600 * 1000) enablePremiumMode();
+    }
+
+    // Auto-activación
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('pago') === 'aprobado') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ active: true, timestamp: new Date().getTime() }));
+        enablePremiumMode();
+
+        const modal = document.getElementById('premium-modal');
+        modal.classList.remove('hidden');
+        modal.querySelector('.modal-content').innerHTML = `
+            <div style="text-align: center; padding: 2rem;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+                <h2 style="color: #00e676; margin-bottom: 0.5rem;">¡Suscripción Activada!</h2>
+                <button id="close-success-btn" style="background: #00e676; color: #000; border: none; padding: 1rem 2rem; border-radius: 50px; font-weight: bold; cursor: pointer; margin-top:1rem;">Comenzar</button>
+            </div>
+        `;
+        document.getElementById('close-success-btn').addEventListener('click', () => {
+            modal.classList.add('hidden');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        });
+    }
+
+    document.getElementById('premium-trigger').addEventListener('click', () => document.getElementById('premium-modal').classList.remove('hidden'));
+    document.querySelector('.modal-close').addEventListener('click', () => document.getElementById('premium-modal').classList.add('hidden'));
+    const actBtn = document.getElementById('activate-btn');
+    if (actBtn) actBtn.addEventListener('click', attemptActivation);
+}
+
+function attemptActivation() {
+    if (document.getElementById('activation-code').value.trim() === PREMIUM_CODE) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ active: true, timestamp: new Date().getTime() }));
+        enablePremiumMode();
+        alert("¡Activado!");
+        document.getElementById('premium-modal').classList.add('hidden');
+    }
+}
+
+function enablePremiumMode() {
+    isPremium = true;
+    const btn = document.getElementById('premium-trigger');
+    btn.innerText = "⚡ PRO";
+    btn.disabled = true;
+}
+
+// Initialize Premium on load
+initPremium();
+
