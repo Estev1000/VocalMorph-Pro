@@ -18,49 +18,49 @@
 </head>
 
 <body>
-
     <div class="app-container">
         <header class="main-header">
             <div class="header-top">
-                <div class="logo">VocalMorph <span class="accent">Pro</span></div>
+                <div class="logo">VocalStudio <span class="accent">Pro</span></div>
                 <button id="premium-trigger" class="premium-btn-header">👑 ACTIVAR PRO</button>
             </div>
-            <p class="subtitle">Transforma tu voz en una orquesta en tiempo real</p>
+            <p class="subtitle">Grabadora Multitrack 44.1kHz • Procesamiento de Estudio</p>
         </header>
 
         <main class="control-center">
 
+            <!-- Monitor de Audio (Vúmetro simple en lugar de Pitch) -->
             <div class="visualizer-container">
                 <canvas id="waveform" width="800" height="200"></canvas>
                 <div class="status-indicator">
-                    <span id="note-display">--</span>
                     <div class="status-dot" id="status-dot"></div>
-                    <p class="status-text">Listo para grabar</p>
+                    <p class="status-text">Motor de Audio en Espera</p>
                 </div>
             </div>
 
             <div class="controls">
+                <!-- Control de Efectos de Estudio -->
+                <div class="studio-rack">
+                    <label class="switch-label">
+                        <input type="checkbox" id="studio-fx-toggle" checked>
+                        <span>✨ Studio FX (Comp + EQ)</span>
+                    </label>
+                </div>
 
                 <div class="recorder-controls">
                     <button id="record-voice-btn" class="primary-btn">
-                        <span class="btn-content">� Grabar Voz</span>
+                        <span class="btn-content">🎙 REC (Nueva Pista)</span>
                     </button>
-                    <!-- El botón play all se mantiene pero oculto hasta que haya pistas -->
                     <button id="play-all-btn" class="secondary-btn" style="display:none;">
-                        <span class="btn-content">▶ Reproducir Todo</span>
+                        <span class="btn-content">▶ Reproducir Mix</span>
                     </button>
-                </div>
-
-                <div class="settings">
-                    <p class="hint-text">Graba tu voz limpia. Luego podrás transformarla en instrumentos.</p>
                 </div>
             </div>
 
             <div class="mixer-section">
-                <h3 class="mixer-title">Estudio de Grabación</h3>
+                <!-- <h3 class="mixer-title">Mezclador</h3> -->
                 <div id="tracks-container" class="tracks-list">
-                    <!-- Las pistas se añadirán aquí dinámicamente -->
-                    <div class="empty-state">No hay pistas grabadas aún</div>
+                    <div class="empty-state">La cinta está vacía. Graba tu primera pista.</div>
                 </div>
             </div>
 
@@ -68,7 +68,7 @@
 
         <footer>
             <div class="footer-content">
-                <p>Desarrollado con IA Avanzada. Funciona localmente en tu navegador.</p>
+                <p>Procesamiento de Audio 32-bit Float | 44.1kHz Sample Rate</p>
             </div>
         </footer>
     </div>
@@ -78,8 +78,8 @@
         <div class="modal-content">
             <button class="modal-close">&times;</button>
             <div class="modal-header">
-                <h2>🚀 VocalMorph <span class="accent">PRO</span></h2>
-                <p>Desata todo tu potencial creativo</p>
+                <h2>🚀 Modo Estudio <span class="accent">PRO</span></h2>
+                <p>Desbloquea el potencial ilimitado</p>
             </div>
 
             <div class="plan-card">
@@ -87,57 +87,27 @@
                     <span class="currency">$</span>5.000<span class="period">/mes</span>
                 </div>
                 <ul class="features-list">
-                    <li>✅ <strong>Pistas Ilimitadas</strong> (Free: solo 1)</li>
-                    <li>✅ <strong>Descargas MP3</strong> (Free: bloqueado)</li>
-                    <li>✅ <strong>Todos los Instrumentos</strong></li>
-                    <li>✅ <strong>Soporte Técnico Especializado</strong></li>
+                    <li>✅ <strong>Pistas Ilimitadas</strong> (Free: 1 Demo)</li>
+                    <li>✅ <strong>Exportar WAV 32-bit</strong> (Alta Calidad)</li>
+                    <li>✅ <strong>Rack de Efectos Pro</strong></li>
+                    <li>✅ <strong>Soporte Técnico</strong></li>
                 </ul>
 
                 <a href="https://mpago.la/1rvXhif" target="_blank" class="mp-btn-pay">
-                    Pagar Suscripción con Mercado Pago
+                    Suscribirse con Mercado Pago
                 </a>
             </div>
 
             <div class="activation-section">
-                <p>¿Tenes un código de activación?</p>
+                <p>¿Tenes un código?</p>
                 <div class="input-group">
-                    <input type="text" id="activation-code" placeholder="Ingresa tu código aquí...">
+                    <input type="text" id="activation-code" placeholder="Código...">
                     <button id="activate-btn">ACTIVAR</button>
                 </div>
-                <p id="activation-msg" class="msg"></p>
-                <div class="support-info">
-                    <p>Soporte: <a href="https://wa.me/5492657708115" target="_blank">Whatsapp Soporte</a></p>
-                </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal Transformación -->
-    <div id="transform-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <button class="modal-close-transform">&times;</button>
-            <div class="modal-header">
-                <h2>🎻 Elegir Instrumento</h2>
-                <p>¿En qué quieres transformar esta grabación?</p>
-            </div>
-
-            <div class="instrument-grid">
-                <button class="t-inst-btn" onclick="selectTransformInstrument('violin')">
-                    <span class="t-icon">🎻</span> Violín
-                </button>
-                <button class="t-inst-btn" onclick="selectTransformInstrument('cello')">
-                    <span class="t-icon">🎻</span> Cello
-                </button>
-                <button class="t-inst-btn" onclick="selectTransformInstrument('synth')">
-                    <span class="t-icon">🎹</span> Synth
-                </button>
-            </div>
-
-            <p class="processing-msg hidden">Procesando audio... <span class="spinner">⏳</span></p>
-        </div>
-    </div>
-
-    <script src="pitch-detect.js"></script>
     <script src="app.js"></script>
 </body>
 
