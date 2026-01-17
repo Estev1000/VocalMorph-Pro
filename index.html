@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VocalMorph Pro | Tu Voz es el Instrumento</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Tone.js para el motor de audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Lamejs para conversión MP3 -->
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <header class="main-header">
+            <div class="logo">VocalMorph <span class="accent">Pro</span></div>
+            <p class="subtitle">Transforma tu voz en una orquesta en tiempo real</p>
+        </header>
+
+        <main class="control-center">
+
+            <div class="visualizer-container">
+                <canvas id="waveform" width="800" height="200"></canvas>
+                <div class="status-indicator">
+                    <span id="note-display">--</span>
+                    <div class="status-dot" id="status-dot"></div>
+                </div>
+            </div>
+
+            <div class="instrument-selector">
+                <p class="label">Selecciona tu Instrumento</p>
+                <div class="instruments">
+                    <button class="inst-btn active" data-inst="violin">
+                        <span class="icon">🎻</span> Violín
+                    </button>
+                    <button class="inst-btn" data-inst="cello">
+                        <span class="icon">🎻</span> Cello
+                    </button>
+                    <button class="inst-btn" data-inst="synth">
+                        <span class="icon">🎹</span> Synth
+                    </button>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="start-btn" class="primary-btn">
+                    <span class="btn-content">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                        Activar Micrófono
+                    </span>
+                </button>
+
+                <div class="settings">
+                    <div class="setting-group">
+                        <label>Sensibilidad Mic</label>
+                        <input type="range" min="-60" max="-20" value="-40" id="threshold-slider">
+                    </div>
+                </div>
+
+                <div class="recorder-controls">
+                    <button id="record-btn" class="secondary-btn" disabled>
+                        <span class="btn-content">⏺ Grabar Pista</span>
+                    </button>
+                    <button id="play-all-btn" class="secondary-btn" disabled>
+                        <span class="btn-content">▶ Reproducir Todo</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <h3 class="mixer-title">Estudio de Grabación</h3>
+                <div id="tracks-container" class="tracks-list">
+                    <!-- Las pistas se añadirán aquí dinámicamente -->
+                    <div class="empty-state">No hay pistas grabadas aún</div>
+                </div>
+            </div>
+
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <p>Desarrollado con IA Avanzada. Funciona localmente en tu navegador.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="pitch-detect.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
