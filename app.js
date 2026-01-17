@@ -50,23 +50,31 @@ function initApp() {
     recordVoiceBtn.addEventListener('click', toggleVoiceRecording);
     playAllBtn.addEventListener('click', togglePlayAll);
     transformCloseBtn.addEventListener('click', () => transformModal.classList.add('hidden'));
+}
 
-    // Setup Audio Context on first interaction
-    document.addEventListener('click', async () => {
-        if (!audioContext) {
+// --- Voice Recording Logic ---
+
+async function toggleVoiceRecording() {
+    // 1. Initial Setup on First Interaction (Mobile Friendly Fix)
+    // Inicializamos el audio AQUÍ, en respuesta directa al click del usuario.
+    if (!audioContext) {
+        try {
             await Tone.start();
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
             // Connect instruments to master
             const master = Tone.Destination;
             Object.values(instruments).forEach(i => i.connect(master));
+        } catch (e) {
+            console.error("Audio Init Failed", e);
         }
-    }, { once: true });
-}
+    }
 
-// --- Voice Recording Logic ---
+    // Resume context if suspended (Common in Chrome/iOS)
+    if (audioContext && audioContext.state === 'suspended') {
+        try { await audioContext.resume(); } catch (e) { console.error(e); }
+    }
 
-async function toggleVoiceRecording() {
     // Premium Check (Limit 1 track for free users)
     if (!isPremium && tracks.length >= 1 && !isRecording) {
         document.getElementById('premium-modal').classList.remove('hidden');
@@ -84,24 +92,32 @@ async function toggleVoiceRecording() {
                 }
             });
 
-            // Asegurar contexto activo
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-
             // Conectar Visualizador
             const source = audioContext.createMediaStreamSource(stream);
             PitchDetector.updateSource(source);
             drawWaveform(); // Iniciar loop visual
 
             // Usar MediaRecorder para guardar el audio limpio
-            voiceRecorder = new MediaRecorder(stream);
+            // Intentar usar codecs compatibles
+            let options = { mimeType: 'audio/webm;codecs=opus' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'audio/webm' }; // Fallback
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options = undefined; // Default del navegador (mp4 en safari)
+                }
+            }
+
+            voiceRecorder = new MediaRecorder(stream, options);
             let chunks = [];
-            voiceRecorder.ondataavailable = e => chunks.push(e.data);
+
+            voiceRecorder.ondataavailable = e => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
             voiceRecorder.onstop = async () => {
-                const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+                const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' }); // Ojo: Tone.js decodeAudioData maneja la mayoría
                 pendingVoiceBlob = blob;
-                // Detener tracks del stream para apagar icono de grabacion del navegador
+                // Detener tracks del stream
                 stream.getTracks().forEach(t => t.stop());
                 openTransformModal();
             };
@@ -172,89 +188,80 @@ window.selectTransformInstrument = async function (instName) {
         console.error(e);
         alert("Error en la transformación.");
         transformModal.classList.add('hidden');
+        document.querySelector('.instrument-grid').style.display = 'grid';
+        document.querySelector('.processing-msg').classList.add('hidden');
     }
 };
 
 async function processAudioToInstrument(voiceBlob, instName) {
     return new Promise(async (resolve, reject) => {
-        // 1. Decode Voice Audio
-        const arrayBuffer = await voiceBlob.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        try {
+            // 1. Decode Voice Audio
+            const arrayBuffer = await voiceBlob.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-        // 2. Setup Tone.js Offline context? No, use Realtime fast or normal. 
-        // We will use realtime playback but "muted" to speakers, recording the synth output.
-        // NOTE: Faster acceleration (playbackRate) might break pitch detection accuracy.
-        // We stick to 1x speed for quality.
+            const duration = audioBuffer.duration;
+            const synth = instruments[instName];
 
-        const duration = audioBuffer.duration;
-        const synth = instruments[instName];
+            // Temporary Recorder for Synth Output
+            const destRecorder = new Tone.Recorder();
+            synth.disconnect(); // Disconnect from master speakers
+            synth.connect(destRecorder); // Connect to recorder
 
-        // Temporary Recorder for Synth Output
-        const destRecorder = new Tone.Recorder();
-        synth.disconnect(); // Disconnect from master speakers
-        synth.connect(destRecorder); // Connect to recorder
+            // Player for Voice (Source)
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
 
-        // Player for Voice (Source)
-        // We create a buffer source node manually to feed PitchDetector
-        const source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
+            // Connect Source -> PitchDetector
+            PitchDetector.updateSource(source);
 
-        // Connect Source -> PitchDetector
-        PitchDetector.updateSource(source);
+            // Start Analysis Loop
+            destRecorder.start();
+            source.start();
 
-        // Start Analysis Loop
-        destRecorder.start();
-        source.start();
+            const startTime = audioContext.currentTime;
+            let processing = true;
 
-        const startTime = audioContext.currentTime;
-        let processing = true;
+            // Analysis Loop
+            function processLoop() {
+                if (!processing) return;
 
-        // Analysis Loop
-        function processLoop() {
-            if (!processing) return;
+                const now = audioContext.currentTime;
+                if (now - startTime > duration) {
+                    finishProcessing();
+                    return;
+                }
 
-            const now = audioContext.currentTime;
-            if (now - startTime > duration) {
-                // Done
-                finishProcessing();
-                return;
+                // Detect Pitch
+                const freq = PitchDetector.getPitch();
+                if (freq && freq > 65 && freq < 2000) {
+                    synth.triggerAttackRelease(freq, 0.1);
+                }
+
+                requestAnimationFrame(processLoop);
             }
 
-            // Detect Pitch
-            const freq = PitchDetector.getPitch();
-            if (freq && freq > 65 && freq < 2000) {
-                // Trigger Synth
-                // We use setNote/frequency ramp for continuous tracking
-                // If Envelope is attack/release style, we need to manage triggers.
-                // For simplicity in this "morph" mode, we hold note if freq exists.
+            processLoop();
 
-                // synth.triggerAttack(freq); // This retriggers attack too much
-                // Better: ramp frequency if active, trigger if new
+            async function finishProcessing() {
+                processing = false;
 
-                synth.triggerAttackRelease(freq, 0.1); // Granular approach 
+                // Allow tail release
+                setTimeout(async () => {
+                    const recording = await destRecorder.stop();
+
+                    // Reconnect synth to speakers for playback
+                    synth.disconnect();
+                    synth.connect(Tone.Destination); // O al master si lo teniamos definido
+
+                    // Convert to MP3
+                    const mp3 = await convertBlobToMp3(recording);
+                    resolve(mp3);
+
+                }, 500); // 500ms tail
             }
-
-            requestAnimationFrame(processLoop);
-        }
-
-        processLoop();
-
-        async function finishProcessing() {
-            processing = false;
-
-            // Allow tail release
-            setTimeout(async () => {
-                const recording = await destRecorder.stop();
-
-                // Reconnect synth to speakers for playback
-                synth.disconnect();
-                synth.connect(Tone.Destination);
-
-                // Convert to MP3
-                const mp3 = await convertBlobToMp3(recording);
-                resolve(mp3);
-
-            }, 500); // 500ms tail
+        } catch (e) {
+            reject(e);
         }
     });
 }
@@ -339,8 +346,6 @@ function togglePlayAll() {
 
 // --- MP3 Utils ---
 async function convertBlobToMp3(blob) {
-    // Reusando función existente o definiendo nueva
-    // (Se incluye simplificada aquí para asegurar que funcione con el nuevo código)
     const ab = await blob.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(ab);
     return encodeMp3(audioBuffer);
@@ -393,7 +398,7 @@ function drawWaveform() {
     requestAnimationFrame(drawWaveform);
 }
 
-// --- Premium Init Logic (Localstorage etc) ---
+// --- Premium Init Logic ---
 function initPremium() {
     const savedStatus = localStorage.getItem(STORAGE_KEY);
     if (savedStatus) {
@@ -401,32 +406,24 @@ function initPremium() {
         if (new Date().getTime() - data.timestamp < 30 * 24 * 3600 * 1000) enablePremiumMode();
     }
 
-    // Auto-activación por URL (Mercado Pago Return)
+    // Auto-activación
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('pago') === 'aprobado') {
-        // Activar Directamente
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ active: true, timestamp: new Date().getTime() }));
         enablePremiumMode();
 
-        // Mostrar Modal de Éxito
         const modal = document.getElementById('premium-modal');
         modal.classList.remove('hidden');
-
-        // Limpiar contenido del modal para mostrar solo éxito
-        const content = modal.querySelector('.modal-content');
-        content.innerHTML = `
+        modal.querySelector('.modal-content').innerHTML = `
             <div style="text-align: center; padding: 2rem;">
                 <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
                 <h2 style="color: #00e676; margin-bottom: 0.5rem;">¡Suscripción Activada!</h2>
-                <p style="color: #ccc; margin-bottom: 2rem;">Gracias por apoyar VocalMorph Pro.</p>
-                <button id="close-success-btn" style="background: #00e676; color: #000; border: none; padding: 1rem 2rem; border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 1.1rem;">Comenzar a Crear</button>
+                <button id="close-success-btn" style="background: #00e676; color: #000; border: none; padding: 1rem 2rem; border-radius: 50px; font-weight: bold; cursor: pointer; margin-top:1rem;">Comenzar</button>
             </div>
         `;
-
         document.getElementById('close-success-btn').addEventListener('click', () => {
             modal.classList.add('hidden');
-            // Limpiar URL para que no vuelva a saltar al recargar
-            window.history.replaceState({}, document.title, "/VocalMorph-Pro/");
+            window.history.replaceState({}, document.title, window.location.pathname);
         });
     }
 
