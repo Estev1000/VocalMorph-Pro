@@ -106,6 +106,20 @@ async function toggleRecording() {
                 stream.getTracks().forEach(t => t.stop());
             };
 
+            // REPRODUCIR PISTAS EXISTENTES (Para grabar encima con sincronización perfecta)
+            if (tracks.length > 0) {
+                // Sincronización: Reiniciar todas las pistas desde el inicio
+                const now = Tone.now() + 0.1;
+                tracks.forEach(t => {
+                    if (t.player.state === 'started') {
+                        t.player.stop();
+                    }
+                    // Resetear posición a inicio (buscar a 0)
+                    t.player.seek(0);
+                    t.player.start(now);
+                });
+            }
+
             mediaRecorder.start();
             isRecording = true;
             drawWaveform();
@@ -125,6 +139,12 @@ async function toggleRecording() {
     } else {
         // --- DETENER ---
         if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+
+        // Detener reproducción de fondo
+        if (tracks.length > 0) {
+            tracks.forEach(t => t.player.stop());
+        }
+
         isRecording = false;
 
         // UI Reset
@@ -157,7 +177,7 @@ async function processAndEncodeAudio(rawBlob) {
 
         // 1. Preamp Saturation (Calidez)
         const preamp = offlineCtx.createWaveShaper();
-        preamp.curve = makeDistortionCurve(100);
+        preamp.curve = makeDistortionCurve(5); // Muy suave para evitar saturación
         preamp.oversample = '4x';
 
         // 2. EQ Correctivo
@@ -168,22 +188,21 @@ async function processAndEncodeAudio(rawBlob) {
         const eqPresence = offlineCtx.createBiquadFilter(); // Presencia
         eqPresence.type = 'peaking';
         eqPresence.frequency.value = 3000;
-        eqPresence.gain.value = 2;
+        eqPresence.gain.value = 1; // Reducido a 1dB para menos agresividad
 
         // 3. Compresor Leveling (Nivela el volumen como un pro)
         const compressor = offlineCtx.createDynamicsCompressor();
-        compressor.threshold.value = -24;
+        compressor.threshold.value = -18; // Menos agresivo
         compressor.knee.value = 30;
-        compressor.ratio.value = 3;
+        compressor.ratio.value = 2; // Compresión más suave
         compressor.attack.value = 0.003;
         compressor.release.value = 0.25;
 
-        // Conectar Cadena
+        // Conectar Cadena (sin saturación excesiva)
         source.connect(eqLow);
         eqLow.connect(eqPresence);
         eqPresence.connect(compressor);
-        compressor.connect(preamp); // Saturation al final para color
-        preamp.connect(offlineCtx.destination);
+        compressor.connect(offlineCtx.destination);
 
         source.start();
         finalBuffer = await offlineCtx.startRendering();
@@ -249,6 +268,9 @@ function addTrackUI(blob) {
     const id = trackCounter++;
     const url = URL.createObjectURL(blob);
     const player = new Tone.Player(url).toDestination();
+    
+    // Ajustar volumen por defecto a -3dB para evitar saturación
+    player.volume.value = -3;
 
     const trackObj = { id, player, blob, name: `Studio_Master_${id}.mp3` };
     tracks.push(trackObj);
@@ -264,7 +286,7 @@ function addTrackUI(blob) {
             <span class="track-name">Pista ${id} - MP3 320k</span>
         </div>
         <div class="track-controls">
-            <input type="range" min="-20" max="6" value="0" class="track-volume" oninput="setVolume(${id}, this.value)">
+            <input type="range" min="-20" max="6" value="-3" class="track-volume" oninput="setVolume(${id}, this.value)">
             <button class="icon-btn play-single" onclick="toggleSoloTrack(${id}, this)">▶</button>
             <button class="icon-btn" onclick="downloadTrack(${id})">⬇</button>
             <button class="icon-btn" onclick="deleteTrack(${id})">❌</button>
@@ -315,7 +337,10 @@ async function togglePlayMix() {
     } else {
         await Tone.start();
         const now = Tone.now() + 0.1;
-        tracks.forEach(t => t.player.start(now));
+        tracks.forEach(t => {
+            t.player.seek(0); // Comenzar desde el inicio
+            t.player.start(now);
+        });
         playAllBtn.innerHTML = `<span class="btn-content">⏸ Pausa</span>`;
     }
 }
